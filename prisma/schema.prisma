@@ -1,0 +1,35 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+model Identification {
+  id String @id @default(uuid())
+}
+
+model IdentificationType {
+  id   String @id @default(uuid())
+  type String @unique
+
+  identificationTypeMetadataId String?
+  IdentificationTypeMetadata   IdentificationTypeMetadata? @relation(fields: [identificationTypeMetadataId], references: [id])
+}
+
+model IdentificationTypeMetadata {
+  id              String  @id @default(uuid())
+  pageTitle       String  @map("page_title")
+  pageDescription String? @map("page_description")
+  pageImageLink   String  @map("page_image_link")
+
+  identificationType IdentificationType[]
+}
