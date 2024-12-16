@@ -13,23 +13,63 @@ datasource db {
   url      = env("POSTGRES_URL")
 }
 
+enum FileName {
+  BACK_DOCUMENT_IMAGE
+  FRONT_DOCUMENT_IMAGE
+  SELF_IMAGE
+}
+
+model File {
+  id       String   @id @unique @default(uuid())
+  name     FileName
+  mimeType String
+  size     Int
+  content  Bytes
+
+  Identification   Identification? @relation(fields: [identificationId], references: [id])
+  identificationId String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+enum DocumentType {
+  CPF
+  CNPJ
+  CNH
+  PASSPORT
+}
+
 model Identification {
-  id String @id @default(uuid())
+  id String @id @unique @default(uuid())
+
+  document     String
+  documentType DocumentType
+  score        Int?
+  bigDecision  String?
+  approved     Boolean?
+
+  identificationTypeId String?
+
+  files              File[]
+  IdentificationType IdentificationType? @relation(fields: [identificationTypeId], references: [id])
 }
 
 model IdentificationType {
-  id   String @id @default(uuid())
-  type String @unique
+  id            String @id @unique @default(uuid())
+  name          String @unique
+  imageIconLink String
+
+  identification Identification[]
 
   identificationTypeMetadataId String?
   IdentificationTypeMetadata   IdentificationTypeMetadata? @relation(fields: [identificationTypeMetadataId], references: [id])
 }
 
 model IdentificationTypeMetadata {
-  id              String  @id @default(uuid())
-  pageTitle       String  @map("page_title")
-  pageDescription String? @map("page_description")
-  pageImageLink   String  @map("page_image_link")
+  id                String  @id @unique @default(uuid())
+  pageTitle         String  @map("page_title")
+  pageDescription   String? @map("page_description")
+  pageImageCardLink String  @map("page_image_card_link")
 
   identificationType IdentificationType[]
 }
