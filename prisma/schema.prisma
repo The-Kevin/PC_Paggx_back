@@ -37,6 +37,7 @@ model Identification {
 
   document             String
   score                Int?
+  similarity           Float?
   bigDecision          String?
   approved             Boolean?
   identificationTypeId String?

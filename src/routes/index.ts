@@ -58,6 +58,104 @@ router.post('/identification/type', async (req: Request, res: Response): Promise
     })
 })
 
+router.post('/upload/self', upload.fields([
+    {
+        name: 'firstImage',
+        maxCount: 1
+    },
+    {
+        name: 'secondImage',
+        maxCount: 1
+    },
+    {
+        name: 'thirdImage',
+        maxCount: 1
+    }
+]), async (req, res) => {
+
+    const identificationId = req.body.identificationId
+
+    const firstImage = req.files['firstImage']?.[0]
+    const secondImage = req.files['secondImage']?.[0]
+    const thirdImage = req.files['thirdImage']?.[0]
+
+    const identification = await PrismaInstance.identification.findUnique({
+        where: {
+            id: identificationId
+        },
+        include: {
+            files: true
+        }
+    })
+
+
+    if (!firstImage || !secondImage || !thirdImage || !identification) {
+        res.status(400).send("Wrong uploaded image")
+        return
+    }
+
+    const previousSelfImages = identification.files.filter(file => file.name === 'SELF_IMAGE')
+    if (previousSelfImages.length > 0) {
+        res.status(400).send("Self already capured")
+        return
+    }
+
+    const base64FirstImage = firstImage.buffer.toString('base64')
+    const base64DocumentImage = Buffer.from(identification.files.find(file => file.name === 'FRONT_DOCUMENT_IMAGE').content).toString('base64')
+
+    const { data } = await axios.post(process.env.BDC_URL + '/biometrias/facematch', {
+        "Parameters": [`BASE_FACE_IMG=${base64FirstImage}`, `MATCH_IMG=${base64DocumentImage}`]
+
+    }, {
+        headers: {
+            AccessToken: process.env.BDC_TOKEN
+        }
+    })
+
+    if (data.ResultCode != -800 && data.ResultCode != 80) {
+        res.status(400).send("Wrong uploaded image")
+        return
+    }
+
+    const result = await PrismaInstance.identification.update({
+        where: {
+            id: identification.id
+        },
+        data: {
+            bigDecision: data.ResultMessage,
+            similarity: parseFloat(data.EstimatedInfo['Similarity']),
+            files: {
+                createMany: {
+                    data: [
+                        {
+                            name: "SELF_IMAGE",
+                            mimeType: firstImage.mimetype,
+                            size: firstImage.size,
+                            content: firstImage.buffer
+                        },
+                        {
+                            name: "SELF_IMAGE",
+                            mimeType: secondImage.mimetype,
+                            size: secondImage.size,
+                            content: secondImage.buffer
+                        },
+                        {
+                            name: "SELF_IMAGE",
+                            mimeType: thirdImage.mimetype,
+                            size: thirdImage.size,
+                            content: thirdImage.buffer
+                        },
+                    ]
+                }
+            }
+        }
+    })
+
+    res.status(200).json({
+        id: result.id
+    })
+
+})
 
 router.post('/upload/documents', upload.fields([
     {
@@ -69,7 +167,6 @@ router.post('/upload/documents', upload.fields([
         maxCount: 1
     }
 ]), async (req: Request, res: Response): Promise<void> => {
-
 
     const frontDocument = req.files['frontDocumentImage']?.[0]
     const backDocument = req.files['backDocumentImage']?.[0]
