@@ -29,6 +29,7 @@ router.post('/identification/type', async (req: Request, res: Response): Promise
         data: {
             name: req.body.name,
             imageIconLink: req.body.imageIconLink,
+            type: req.body.type,
             IdentificationTypeMetadata: {
                 connectOrCreate: {
                     where: { // need validation
@@ -50,6 +51,7 @@ router.post('/identification/type', async (req: Request, res: Response): Promise
     res.status(201).json({
         id: data.id,
         name: data.name,
+        type: data.type,
         imageIconLink: data.imageIconLink,
         pageTitle: data.IdentificationTypeMetadata.pageTitle,
         pageImageCardLink: data.IdentificationTypeMetadata.pageImageCardLink
@@ -68,10 +70,18 @@ router.post('/upload/documents', upload.fields([
     }
 ]), async (req: Request, res: Response): Promise<void> => {
 
+
     const frontDocument = req.files['frontDocumentImage']?.[0]
     const backDocument = req.files['backDocumentImage']?.[0]
+    const identificationTypeId = req.body.identificationTypeId
 
-    if (!frontDocument || !backDocument) {
+    const identificationType = await PrismaInstance.identificationType.findUnique({
+        where: {
+            id: identificationTypeId
+        }
+    })
+
+    if (!frontDocument || !backDocument || !identificationType) {
         res.status(400).send('Files not uploaded properly.');
         return
     }
@@ -79,7 +89,7 @@ router.post('/upload/documents', upload.fields([
     const frontBase64 = frontDocument.buffer.toString('base64');
 
     const documentInfoResult = await axios.post(process.env.BDC_URL + '/documentoscopia/checar', {
-        "Parameters": [`DOC_IMG=${frontBase64}`]
+        "Parameters": [`DOC_IMG=${frontBase64}`, `DOC_TYPE=${identificationType.type}`]
 
     }, {
         headers: {
@@ -89,18 +99,23 @@ router.post('/upload/documents', upload.fields([
 
     if (documentInfoResult.status != 200) {
         res.status(500).send('Something is wrong! Please try again later')
+        return
     }
 
     //need increment new types them
     const { CNHNUMBER, CPF } = documentInfoResult.data['DocInfo']
 
+    if (parseInt(documentInfoResult.data['ResultCode']) != 70 || (!CNHNUMBER && !CPF)) {
+        res.status(400).send('Invalid documents')
+        return
+    }
+
     const identification = await PrismaInstance.identification.create({
         data: {
             document: CPF || CNHNUMBER,
-            documentType: CPF ? 'CPF' : 'CNH',
             IdentificationType: {
                 connect: {
-                    id: req.body.identificationTypeId
+                    id: identificationType.id
                 }
             },
             files: {

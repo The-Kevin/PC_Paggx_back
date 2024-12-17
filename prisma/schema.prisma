@@ -32,6 +32,19 @@ model File {
   createdAt DateTime @default(now()) @map("created_at")
 }
 
+model Identification {
+  id String @id @unique @default(uuid())
+
+  document             String
+  score                Int?
+  bigDecision          String?
+  approved             Boolean?
+  identificationTypeId String?
+
+  files              File[]
+  IdentificationType IdentificationType? @relation(fields: [identificationTypeId], references: [id])
+}
+
 enum DocumentType {
   CPF
   CNPJ
@@ -39,25 +52,11 @@ enum DocumentType {
   PASSPORT
 }
 
-model Identification {
-  id String @id @unique @default(uuid())
-
-  document     String
-  documentType DocumentType
-  score        Int?
-  bigDecision  String?
-  approved     Boolean?
-
-  identificationTypeId String?
-
-  files              File[]
-  IdentificationType IdentificationType? @relation(fields: [identificationTypeId], references: [id])
-}
-
 model IdentificationType {
-  id            String @id @unique @default(uuid())
-  name          String @unique
+  id            String       @id @unique @default(uuid())
+  name          String       @unique
   imageIconLink String
+  type          DocumentType
 
   identification Identification[]
 
